@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modelamiento dinámico y simulación</title>
+<style>
+  :root{ --bg:#000; --ink:#e9ebec; --dim:#7d868c; --acc:#e8a33d; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:var(--bg); color:var(--ink); overflow:hidden; font:400 13px/1.4 Inter,"Segoe UI",system-ui,sans-serif; }
+  #escena{ position:fixed; inset:0; }
+  video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; opacity:0; transition:opacity .45s ease; pointer-events:none; }
+  video.on{ opacity:1; }
+  /* barra inferior: aparece al mover el mouse y se esconde sola */
+  #barra{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:12px;
+    background:rgba(12,14,16,.78); border:1px solid rgba(255,255,255,.08); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); transition:opacity .35s; z-index:5; }
+  body.quieto #barra, body.quieto #puntos{ opacity:0; pointer-events:none; }
+  body.quieto{ cursor:none; }
+  #barra button{ width:34px; height:34px; border-radius:8px; border:1px solid rgba(255,255,255,.1); background:transparent; color:var(--ink); cursor:pointer; font:500 15px/1 system-ui; }
+  #barra button:hover{ background:rgba(255,255,255,.08); }
+  #num{ font:500 12px/1 ui-monospace,"JetBrains Mono",Consolas,monospace; color:var(--dim); min-width:58px; text-align:center; letter-spacing:.06em; }
+  #num b{ color:var(--ink); font-weight:500; }
+  #puntos{ position:fixed; left:0; right:0; top:0; height:3px; display:flex; gap:2px; z-index:5; transition:opacity .35s; }
+  #puntos i{ flex:1; background:rgba(255,255,255,.12); cursor:pointer; }
+  #puntos i.ya{ background:rgba(232,163,61,.55); }
+  #puntos i.act{ background:var(--acc); }
+  #inicio{ position:fixed; inset:0; z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:#000; text-align:center; padding:24px; }
+  #inicio h1{ font-weight:300; font-size:clamp(28px,5vw,56px); letter-spacing:-.02em; line-height:1.05; }
+  #inicio h1 span{ color:var(--acc); }
+  #inicio p{ color:var(--dim); font-size:12px; letter-spacing:.14em; text-transform:uppercase; }
+  #inicio button{ margin-top:8px; padding:12px 26px; border-radius:10px; border:1px solid var(--acc); background:rgba(232,163,61,.12); color:var(--acc); font:500 14px/1 inherit; cursor:pointer; letter-spacing:.04em; }
+  #inicio button:hover{ background:rgba(232,163,61,.25); }
+  #carga{ font:400 11px/1 ui-monospace,Consolas,monospace; color:var(--dim); }
+  #ayuda{ font-size:11px; color:#4d5459; }
+  #enlaces{ position:fixed; right:22px; bottom:76px; display:none; flex-direction:column; gap:6px; z-index:6; }
+  #enlaces a{ padding:7px 11px; border-radius:8px; background:rgba(12,14,16,.8); border:1px solid rgba(255,255,255,.12); color:var(--ink); text-decoration:none; font-size:12px; }
+  #enlaces a:hover{ border-color:var(--acc); color:var(--acc); }
+  @media (max-width:600px){ #barra{ bottom:10px; } #enlaces{ right:10px; bottom:64px; } }
+</style>
+</head>
+<body>
+<div id="escena"></div>
+<div id="puntos"></div>
+<div id="barra">
+  <button id="ant" title="Anterior (←)">‹</button>
+  <span id="num"><b>01</b> / 18</span>
+  <button id="sig" title="Siguiente (→)">›</button>
+  <button id="pausa" title="Pausar / seguir (espacio)">❚❚</button>
+  <button id="pant" title="Pantalla completa (F)">⛶</button>
+</div>
+<div id="enlaces">
+  <a href="https://alejagoguti-cpu.github.io/tesis_tercer_corte/" target="_blank" rel="noopener">alejagoguti-cpu.github.io/tesis_tercer_corte ↗</a>
+  <a href="https://anasoficasca-code.github.io/tierrabomba/" target="_blank" rel="noopener">anasoficasca-code.github.io/tierrabomba ↗</a>
+</div>
+<div id="inicio">
+  <p>Ana Sofía Casas · Alejandra Gómez · Juan José Trujillo</p>
+  <h1>Modelamiento dinámico<br>y <span>simulación</span></h1>
+  <div id="carga">Cargando videos…</div>
+  <button id="empezar">Presentar</button>
+  <div id="ayuda">← → o clic para avanzar · espacio pausa · F pantalla completa · Esc sale</div>
+</div>
+<script>
+/* Presentación sin internet: los 18 videos están en la carpeta videos/ (exportados de Canva, 1080p).
+   Al abrir se cargan TODOS a memoria (blob), así al cambiar de diapositiva no hay espera ni trabas. */
+const N = 18, esc = document.getElementById('escena'), V = [];
+let i = 0, pausado = false;
+const nom = (k) => 'videos/' + String(k + 1).padStart(2, '0') + '.mp4';
+for (let k = 0; k < N; k++) {
+  const v = document.createElement('video');
+  /* 12, 13 y 17 son muy pesados para GitHub: en la web van en versión liviana; si en este computador existe videos/hd/ se usa la HD */
+  if ([11, 12, 16].includes(k)) { v.src = nom(k).replace('videos/', 'videos/hd/'); v.addEventListener('error', () => { v.src = nom(k); }, { once: true }); } else v.src = nom(k);
+  v.loop = true; v.playsInline = true; v.muted = false;
+  esc.appendChild(v); V.push(v);
+}
+/* los videos se leen del disco (carpeta videos/): siempre están listas la diapositiva actual y la siguiente; las demás solo
+   cargan su encabezado. Así no se llena la memoria con videos de cientos de MB y el paso a la siguiente es inmediato. */
+V.forEach((v, k) => { v.preload = k < 2 ? 'auto' : 'metadata'; });
+const carga = document.getElementById('carga');
+V[0].addEventListener('canplaythrough', () => { carga.textContent = 'Listo ✓'; }, { once: true });
+V[0].addEventListener('error', () => { carga.textContent = 'No encuentro la carpeta videos/ junto a este archivo'; }, { once: true });
+const puntos = document.getElementById('puntos');
+for (let k = 0; k < N; k++) { const p = document.createElement('i'); p.title = 'Diapositiva ' + (k + 1); p.onclick = (e) => { e.stopPropagation(); ir(k); }; puntos.appendChild(p); }
+function ir(k) {
+  k = Math.max(0, Math.min(N - 1, k));
+  const viejo = V[i]; i = k; const v = V[i];
+  v.currentTime = 0; v.classList.add('on');
+  if (!pausado) v.play().catch(() => { v.muted = true; v.play(); });
+  if (viejo !== v) { viejo.classList.remove('on'); setTimeout(() => { if (viejo !== V[i]) viejo.pause(); }, 450); }
+  document.getElementById('num').innerHTML = `<b>${String(i + 1).padStart(2, '0')}</b> / ${N}`;
+  [...puntos.children].forEach((p, q) => { p.className = q === i ? 'act' : q < i ? 'ya' : ''; });
+  document.getElementById('enlaces').style.display = i === N - 1 ? 'flex' : 'none';
+  /* calienta la siguiente: deja su primer cuadro decodificado */
+  [V[i + 1], V[i - 1]].forEach(s => { if (s && s.preload !== 'auto') { s.preload = 'auto'; s.load(); } });
+}
+function pausa() { pausado = !pausado; const v = V[i]; pausado ? v.pause() : v.play(); document.getElementById('pausa').textContent = pausado ? '▶' : '❚❚'; }
+function completa() { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); }
+document.getElementById('empezar').onclick = () => { document.getElementById('inicio').remove(); completa(); ir(0); };
+document.getElementById('ant').onclick = (e) => { e.stopPropagation(); ir(i - 1); };
+document.getElementById('sig').onclick = (e) => { e.stopPropagation(); ir(i + 1); };
+document.getElementById('pausa').onclick = (e) => { e.stopPropagation(); pausa(); };
+document.getElementById('pant').onclick = (e) => { e.stopPropagation(); completa(); };
+esc.onclick = () => { if (!document.getElementById('inicio')) ir(i + 1); };
+addEventListener('keydown', (e) => {
+  if (document.getElementById('inicio')) { if (e.key === 'Enter' || e.key === ' ') document.getElementById('empezar').click(); return; }
+  if (['ArrowRight', 'PageDown', 'ArrowDown', 'Enter'].includes(e.key)) ir(i + 1);
+  else if (['ArrowLeft', 'PageUp', 'ArrowUp', 'Backspace'].includes(e.key)) ir(i - 1);
+  else if (e.key === ' ') { e.preventDefault(); pausa(); }
+  else if (e.key === 'f' || e.key === 'F') completa();
+  else if (e.key === 'Home') ir(0); else if (e.key === 'End') ir(N - 1);
+  else if (/^[0-9]$/.test(e.key)) { /* número + Enter salta a esa diapositiva */ }
+});
+/* barra: se esconde a los 2,5 s sin mover el mouse */
+let tq; const mueve = () => { document.body.classList.remove('quieto'); clearTimeout(tq); tq = setTimeout(() => document.body.classList.add('quieto'), 2500); };
+addEventListener('mousemove', mueve); addEventListener('touchstart', mueve); mueve();
+/* deslizar en tablet/celular */
+let x0 = null; addEventListener('touchstart', e => x0 = e.touches[0].clientX, { passive: true });
+addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50) ir(i + (dx < 0 ? 1 : -1)); x0 = null; });
+</script>
+</body>
+</html>
