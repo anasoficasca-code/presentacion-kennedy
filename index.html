@@ -11,6 +11,17 @@
   #escena{ position:fixed; inset:0; }
   video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; opacity:0; transition:opacity .45s ease; pointer-events:none; }
   video.on{ opacity:1; }
+  .portada{ position:absolute; inset:0; opacity:0; transition:opacity .45s ease; pointer-events:none; overflow:hidden; background:#000; }
+  .portada.on{ opacity:1; }
+  .portada img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .portada::after{ content:''; position:absolute; inset:0; background:
+    linear-gradient(180deg, rgba(120,62,48,.55) 0%, rgba(176,104,78,.32) 22%, rgba(60,40,40,.06) 30%, rgba(0,0,0,0) 45%, rgba(10,8,14,.28) 100%),
+    linear-gradient(100deg, rgba(0,0,0,.38) 0%, rgba(0,0,0,.1) 40%, rgba(0,0,0,0) 62%); mix-blend-mode:multiply; }
+  .portada::before{ content:''; position:absolute; inset:0; z-index:1; background:radial-gradient(ellipse at 70% 24%, rgba(255,170,110,.18), rgba(0,0,0,0) 55%); pointer-events:none; }
+  .portada .pt{ position:absolute; left:6.2%; top:10%; z-index:2; }
+  .portada h2{ font:600 clamp(36px,6.3vw,122px)/.98 Inter,"Segoe UI",system-ui,sans-serif; letter-spacing:-.035em; color:#f4f4f2; text-shadow:0 2px 30px rgba(0,0,0,.25); }
+  .portada h2 span{ color:#f0ac48; }
+  .portada p{ margin-top:clamp(14px,2.2vw,40px); font:500 clamp(10px,.95vw,18px)/1 ui-monospace,"JetBrains Mono",Consolas,monospace; letter-spacing:.16em; text-transform:uppercase; color:#e4e2dc; }
   /* barra inferior: aparece al mover el mouse y se esconde sola */
   #barra{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:12px;
     background:rgba(12,14,16,.78); border:1px solid rgba(255,255,255,.08); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); transition:opacity .35s; z-index:5; }
@@ -65,7 +76,14 @@
 const N = 18, esc = document.getElementById('escena'), V = [];
 let i = 0, pausado = false;
 const nom = (k) => 'videos/' + String(k + 1).padStart(2, '0') + '.mp4';
-for (let k = 0; k < N; k++) {
+/* diapositiva 1: la imagen de Canva era de baja resolución; se rehace con una captura 4K del simulador y el título como texto */
+{
+  const d = document.createElement('div'); d.className = 'portada';
+  d.innerHTML = '<img src="portada.jpg" alt=""><div class="pt"><h2>Modelamiento<br>dinámico<br>y <span>simulación</span></h2><p>Ana Sofía Casas · Alejandra Gómez · Juan José Trujillo</p></div>';
+  d.play = () => Promise.resolve(); d.pause = () => {}; d.currentTime = 0; d.load = () => {};
+  esc.appendChild(d); V.push(d);
+}
+for (let k = 1; k < N; k++) {
   const v = document.createElement('video');
   /* 12, 13 y 17 son muy pesados para GitHub: en la web van en versión liviana; si en este computador existe videos/hd/ se usa la HD */
   if ([11, 12, 16].includes(k)) { v.src = nom(k).replace('videos/', 'videos/hd/'); v.addEventListener('error', () => { v.src = nom(k); }, { once: true }); } else v.src = nom(k);
@@ -74,10 +92,10 @@ for (let k = 0; k < N; k++) {
 }
 /* los videos se leen del disco (carpeta videos/): siempre están listas la diapositiva actual y la siguiente; las demás solo
    cargan su encabezado. Así no se llena la memoria con videos de cientos de MB y el paso a la siguiente es inmediato. */
-V.forEach((v, k) => { v.preload = k < 2 ? 'auto' : 'metadata'; });
+V.forEach((v, k) => { if (k) v.preload = k < 3 ? 'auto' : 'metadata'; });
 const carga = document.getElementById('carga');
-V[0].addEventListener('canplaythrough', () => { carga.textContent = 'Listo ✓'; }, { once: true });
-V[0].addEventListener('error', () => { carga.textContent = 'No encuentro la carpeta videos/ junto a este archivo'; }, { once: true });
+V[1].addEventListener('canplaythrough', () => { carga.textContent = 'Listo ✓'; }, { once: true });
+V[1].addEventListener('error', () => { carga.textContent = 'No encuentro la carpeta videos/ junto a este archivo'; }, { once: true });
 const puntos = document.getElementById('puntos');
 for (let k = 0; k < N; k++) { const p = document.createElement('i'); p.title = 'Diapositiva ' + (k + 1); p.onclick = (e) => { e.stopPropagation(); ir(k); }; puntos.appendChild(p); }
 function ir(k) {
